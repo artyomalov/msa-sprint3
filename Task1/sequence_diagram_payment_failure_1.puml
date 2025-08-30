@@ -1,0 +1,17 @@
+@startuml PaymentFailureScenario
+actor Customer
+participant "Сервис корзины" as CartService
+participant "Сервис заказа" as OrderService
+participant "Сервис каталога товаров" as ProductService
+participant "Сервис платежей" as PaymentService
+participant "Сервис уведомлений" as NotificationService
+participant "Сервис логистики" as LogisticsService
+
+Customer -> CartService : Checkout()
+CartService -> OrderService : CreateOrder()
+OrderService -> ProductService : CheckInventory()
+ProductService -> OrderService : InventoryChecked
+ProductService -> OrderService : Out of staff
+OrderService -> NotificationService : NotifyOutOfStaffFailure()
+NotificationService -> Customer : SendOutOfStaffNotification
+@enduml

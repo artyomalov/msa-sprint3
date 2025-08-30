@@ -1,0 +1,23 @@
+@startuml SuccessfulOrderPlacement
+actor Customer
+participant "Cart Service" as CartService
+participant "Order Service" as OrderService
+participant "Payment Service" as PaymentService
+participant "Product Service" as ProductService
+participant "Notification Service" as NotificationService
+participant "Logistics Service" as LogisticsService
+
+Customer -> CartService : Checkout()
+CartService -> OrderService : CreateOrder()
+OrderService -> ProductService : CheckInventory()
+ProductService -> OrderService : InventoryChecked
+OrderService -> ProductService : ReserveInventory()
+ProductService -> OrderService : InventoryReserved
+OrderService -> PaymentService : ProcessPayment()
+PaymentService -> OrderService : PaymentSucceeded
+OrderService -> NotificationService : NotifyNewOrder()
+NotificationService -> Customer : SendNotification()
+OrderService -> LogisticsService : RequestDelivery()
+LogisticsService -> OrderService : DeliveryRequested
+
+@enduml
