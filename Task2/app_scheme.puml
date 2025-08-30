@@ -1,0 +1,129 @@
+@startuml NovaMarket Event-Driven Architecture
+
+title NovaMarket Event-Driven Architecture - C2 Container Diagram
+
+skinparam component {
+  BackgroundColor #E6F3FF
+  BorderColor #007BFF
+  ArrowColor #666666
+}
+
+skinparam component {
+  BackgroundColor<<Событие>> #FFF0E6
+  BorderColor<<Событие>> #FF8C00
+}
+
+component Nginx as "Nginx\nApi gateway\nProxy"
+
+' Microservices
+component Userservice as "Сервис пользователья\n\n- Хранит данные пользователя\n- Отвечает за создание нового пользователя\n -Публикует данные для сервиса авторизации пользователя" <<Сервис>>
+component AuthService as "Сервис авторизации\n\n- Хранит данные необъодимые для авторизации\n- Возвращает токены авторизации\n -Проверяет авторизационные данные пользователя" <<Сервис>>
+component ProductService as "Сервис каталога товаров\n\n- Управляет каталогом товаров\n- Предоставляет данные о каталоге товаров или о конкретном товаре" <<Сервис>>
+component CartService as "Сервис корзины\n\n- Управляет корзинами пользователей\n- Управляет добавлением товаров в корзину" <<Сервис>>
+component OrderService as "Сервис заказа\n\n- Управляет жизненым циклом заказа\n- Предоставляет историю заказов" <<Сервис>>
+component PaymentService as "Сервис платежей\n\n- Обрабатывает запросы на платежи\n- Передаёт данные на оплату\nсторонним платёжным сервисам" <<Сервис>>
+component NotificationService as "Сервис уведомлений\n\n- Отправляет уведомления клиентам" <<Сервис>>
+component LogisticsService as "Сервис логистики\n\n- Управляет доставками\n- Интегрируется с поставщиками логистических услуг" <<Сервис>>
+component ReviewService as "Сервис отзывов\n\n- Позволяет пользователям оставлять отзывы о товарах\n- Управляет историей отзывов" <<Сервис>>
+
+' Events
+component UserEvents as "Топик событий пользователя\n- Пользователь создан\n- Данные пользователя изменены\n- Пользователь удалён" <<Событие>>
+component ProductEvents as "Топик событий каталога\n- Товар добавлен\n- Данные товара изменены\n- Товар удалён" <<Событие>>
+component CartEvents as "События корзины для сервиса уведомлений\n- Товар добавлен в корзину\n- Товар удалён из корзины\n- Товары заказаны" <<Событие>>
+component OrderEvents as "События сервиса заказа\n- Заказ создан\n- Заказ оплачен\n- Изменён статус заказа\n- Запрос на историю заказов" <<Событие>>
+component PaymentEvents as "События оплаты\n- Оплата успешна\n- Оплата не удалась" <<Событие>>
+component NotificationEvents as "Уведомления\n- Изменён статус заказа\n- Создан новый заказ" <<Событие>>
+component LogisticsEvents as "Событи сервиса логистики\n- Доставка запрошена\n- Изменён статус доставки" <<Событие>>
+component ReviewEvents as "События отзывов\n- Отзыв оставлен\n- Отзыв изменён" <<Событие>>
+
+' Connect services to their events
+Userservice --> UserEvents : публикует
+ProductService --> ProductEvents : публикует
+CartService --> CartEvents : публикует
+OrderService --> OrderEvents : публикует
+PaymentService --> PaymentEvents : публикует
+NotificationService --> NotificationEvents : публикует
+LogisticsService --> LogisticsEvents : публикует
+ReviewService --> ReviewEvents : публикует
+
+' Event consumption relationships
+UserEvents --> AuthService : потребляет
+
+ProductEvents --> CartService : потребляет
+ProductEvents --> OrderService : потребляет
+
+CartEvents --> OrderService : потребляет
+CartEvents --> NotificationService : потребляет
+
+' Local orchestrator for payment, order and notification services
+OrderEvents --> PaymentService : потребляет
+OrderEvents --> NotificationService : потребляет
+OrderEvents --> LogisticsService : потребляет
+OrderEvents --> ReviewService : потребляет
+
+PaymentEvents --> OrderService : потребляет
+PaymentEvents --> NotificationService : потребляет
+
+LogisticsEvents --> OrderService : потребляет
+LogisticsEvents --> NotificationService : потребляет
+
+' Additional direct service relationships (for request/response)
+Nginx --> AuthService : REST вызов(Авторизация пользователя)
+Nginx --> ProductService : REST вызов
+Nginx --> CartService : REST вызов
+Nginx --> OrderService : REST вызов
+Nginx --> ReviewService : REST вызов(Оставить отзыв)
+Nginx <--> NotificationService : REST вызов (Подключение по SSE/Вебсокеты)
+OrderService --> ProductService : gRPC вызов(проверка наличия товара)
+CartService --> ProductService : gRPC вызов(Получение данных о количестве доступных единиц товара)
+
+note right of ProductService
+  Отправка сообщений "Новый объект корзины"
+end note
+
+note right of CartService
+  Сервис корзины
+  - Получение сообщений "Новый объект корзины"
+  - Удаление из корзины
+  - Проверка количества доступнхы единиц товара
+end note
+
+note right of OrderService
+  Локальный оркестратор
+  для сервисов оплаты,
+  логистики и уведомлений.
+  - Отправить событие заказ в процессе обработки
+  - Проверить наличие товара на складе
+  - Зарезервировать товар
+  - Отправить событие "Запрос на оплату"
+  - Получить событие "Заказ оплачен/платёж не прошёл"
+  - Отправить событие "Запрос доставки"
+  - Получить событие "Статус доставки изменён"
+  - Отправить событие заказ успешно создан/не удалось создать заказ(причина)
+  - Предоставить историю заказов
+end note
+
+note right of PaymentService
+  - Получить событие "Запрос на оплату"
+  - Провести оплату через сторонний сервис
+  - Отправить событие "Заказ оплачен/платёж не прошёл"
+end note
+
+note right of NotificationService
+  Уведомления через
+  доступные клиенты
+end note
+
+note right of LogisticsService
+  Взаимодействие с внешними логистическими системами,
+  Опрос внешних систем/получение данных через веб хуки о статусе доставки,
+  Отправка сообщений об изменении статуса заказа
+end note
+
+note right of ReviewService
+  Управление отзывами
+  - Получение отзывов о товарах
+  - Хранение истории отзывов
+end note
+
+@enduml

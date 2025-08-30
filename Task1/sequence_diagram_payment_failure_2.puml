@@ -1,0 +1,24 @@
+@startuml PaymentFailureScenario
+actor Customer
+participant "Сервис корзины" as CartService
+participant "Сервис заказа" as OrderService
+participant "Сервис каталога товаров" as ProductService
+participant "Сервис платежей" as PaymentService
+participant "Сервис уведомлений" as NotificationService
+participant "Сервис логистики" as LogisticsService
+
+Customer -> CartService : Checkout()
+CartService -> OrderService : CreateOrder()
+OrderService -> ProductService : CheckInventory()
+ProductService -> OrderService : InventoryChecked
+
+OrderService -> ProductService : ReserveInventory()
+ProductService -> OrderService : InventoryReserved
+OrderService -> PaymentService : ProcessPayment()
+PaymentService -> OrderService : PaymentFailed
+OrderService -> PaymentService : InitiateRefund()
+PaymentService -> OrderService : RefundInitiated
+OrderService -> NotificationService : NotifyPaymentFailure()
+NotificationService -> Customer : SendPaymentFailureNotification
+
+@enduml
